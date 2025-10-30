@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import select, union_all
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload, aliased
 from geopy.distance import geodesic
 from app.api.models.organisation import Organization
@@ -183,34 +183,36 @@ class OrganizationService(BaseService):
             NoOrganizationsFoundError: Не найдено организаций, которые имеют указанные виды деятельности
         """
 
-        base_query = select(Activity.id).where(Activity.id == activity_id)
-
-        check_query = await self.session.execute(base_query)
-        activity = check_query.scalar()
-        if not activity:
+        check_query = await self.session.execute(
+            select(Activity.id).where(Activity.id == activity_id)
+        )
+        if not check_query.scalar():
             raise ActivityNotFoundError()
 
-        ActivityAlias = aliased(Activity, name="a")
-        recursive_query = select(ActivityAlias.id).where(
-            ActivityAlias.id == Activity.id
+        activity_tree = (
+            select(Activity.id)
+            .where(Activity.id == activity_id)
+            .cte(name="activity_tree", recursive=True)
         )
-
-        activity_tree = base_query.union_all(recursive_query).cte("activity_tree")
+        a_child = aliased(Activity)
+        activity_tree = activity_tree.union_all(
+            select(a_child.id).where(a_child.parent == activity_tree.c.id)
+        )
 
         stmt = (
             select(Organisation)
             .join(Organisation.organisation_activities)
-            .join(OrganisationActivities.activity)
             .where(OrganisationActivities.activity_id.in_(select(activity_tree.c.id)))
             .options(
                 selectinload(Organisation.phones),
                 selectinload(Organisation.organisation_activities).selectinload(
                     OrganisationActivities.activity
                 ),
+                selectinload(Organisation.building),
             )
             .distinct()
         )
-        
+
         query = await self.session.execute(stmt)
         organizations = query.scalars().all()
 
@@ -218,7 +220,6 @@ class OrganizationService(BaseService):
             raise NoOrganizationsFoundError()
 
         return [OrganizationMapper.convert(organization) for organization in organizations]
-
 
 
 class LocationService(BaseService):
@@ -284,7 +285,7 @@ class LocationService(BaseService):
         )
 
         query = await self.session.execute(stmt)
-        result = query.scalars.all()
+        result = query.scalars().all()
         return result
 
     async def get_organizations_in_radius(
@@ -309,7 +310,7 @@ class LocationService(BaseService):
         buildings = await self.__get_buildings_within_range(
             center_latitude, center_longitude, radius_km
         )
-        result = []
+        result: List[Organization] = []
         if not buildings:
             raise NoBuildingsFoundError()
 
@@ -317,10 +318,8 @@ class LocationService(BaseService):
         organization_service = OrganizationService(self.session)
         for building_id in buildings_ids:
             try:
-                organizations = (
-                    organization_service.get_organizations_from_specific_building(
-                        building_id
-                    )
+                organizations = await organization_service.get_organizations_from_specific_building(
+                    building_id
                 )
                 result.extend(organizations)
             except BuildingWithNoOrganizationsError:
@@ -333,7 +332,7 @@ class LocationService(BaseService):
 
     async def get_organizations_in_square(
         self, ne_lat: float, ne_lon: float, sw_lat: float, sw_lon: float
-    ):
+    ) -> List[Organization]:
         """
         Возвращает список организаций в указанной прямоугольной области на карте
 
@@ -352,7 +351,7 @@ class LocationService(BaseService):
         """
 
         buildings = await self.__get_building_in_square(ne_lat, ne_lon, sw_lat, sw_lon)
-        result = []
+        result: List[Organization] = []
         if not buildings:
             raise NoBuildingsFoundError()
 
@@ -361,10 +360,8 @@ class LocationService(BaseService):
         buildings_ids = [building.id for building in buildings]
         for building_id in buildings_ids:
             try:
-                organizations = (
-                    organization_service.get_organizations_from_specific_building(
-                        building_id
-                    )
+                organizations = await organization_service.get_organizations_from_specific_building(
+                    building_id
                 )
                 result.extend(organizations)
             except BuildingWithNoOrganizationsError:

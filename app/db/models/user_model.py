@@ -1,7 +1,6 @@
 from os import urandom
 from sqlalchemy import Column, String, Integer
-from aiobcrypt import checkpw, hashpw, gensalt
-from bcrypt import hashpw as sync_hashpw, gensalt as sync_gensalt
+import bcrypt
 from .base_model import Model
 
 def generate_token() -> str:
@@ -9,13 +8,12 @@ def generate_token() -> str:
     Генерирует рандомный токен для пользователя
 
     Returns:
-        token (str): Сгененрированный токен
+        token (str): Сгенерированный токен
     """
 
-    intiial = str(urandom(20)).replace("b'", "").replace("'", "").replace("\x00", "")
-    result = sync_hashpw(bytes(intiial, encoding="utf-8"), sync_gensalt())
-    return str(result).replace("b'", "").replace("'", "")
-
+    initial = urandom(20)
+    result = bcrypt.hashpw(initial, bcrypt.gensalt())
+    return result.decode()
 
 
 class User(Model):
@@ -32,14 +30,14 @@ class User(Model):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     login = Column(String, unique=True, nullable=False, index=True)
-    password = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
     token = Column(String, unique=True, nullable=False, default=generate_token)
 
     def __str__(self):
         return self.login
-    
+
     @staticmethod
-    async def hash_user_password(password: str) -> str:
+    def hash_user_password(password: str) -> str:
         """
         Хэширует пароль для дальнейшего сохранения в базу
 
@@ -49,15 +47,14 @@ class User(Model):
         Returns:
             hashed_password (str): Хэшированный пароль
         """
-        hashed_password = await hashpw(bytes(password, encoding="utf-8"), await gensalt())
-        
-        return str(hashed_password).replace("b'", "").replace("'", "")
-    
+        hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+        return hashed_password.decode()
+
     @staticmethod
-    async def check_user_password(password: str, hashed_password: str) -> bool:
+    def check_user_password(password: str, hashed_password: str) -> bool:
         """
         Проверяет пароль пользователя на соответствие хэшу
-        
+
         Args:
             password (str): Введенный пароль
             hashed_password (str): Хэш пароля
@@ -65,5 +62,4 @@ class User(Model):
         Returns:
             result (bool): Результат проверки
         """
-
-        return await checkpw(bytes(password, encoding="utf-8"), bytes(hashed_password, encoding="utf-8"))
+        return bcrypt.checkpw(password.encode("utf-8"), hashed_password.encode("utf-8"))

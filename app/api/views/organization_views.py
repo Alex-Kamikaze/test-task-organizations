@@ -1,13 +1,14 @@
-from typing import Annotated
+from typing import Annotated, List
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.db_dependency import provide_session
 from app.services.organization_services import OrganizationService, LocationService
+from app.api.models.organisation import Organization
 from app.exceptions.service_exceptions import (
     OrganizationNotFoundError,
     NoOrganizationsFoundError,
     NoBuildingsFoundError,
-    ActivityNotFoundError
+    ActivityNotFoundError,
 )
 
 organizations_router = APIRouter()
@@ -33,7 +34,7 @@ organizations_router = APIRouter()
 async def get_organization_by_activity_id(
     session: Annotated[AsyncSession, Depends(provide_session)],
     activity_id: int = Query(description="ID вида деятельности"),
-):
+) -> List[Organization]:
     service = OrganizationService(session)
     try:
         result = await service.get_organizations_by_activity_id(activity_id)
@@ -63,7 +64,7 @@ async def get_organization_by_activity_id(
 async def search_organizations(
     session: Annotated[AsyncSession, Depends(provide_session)],
     name: str = Query(description="Название организации"),
-):
+) -> List[Organization]:
     service = OrganizationService(session)
     try:
         result = await service.search_organization_by_name(name)
@@ -88,7 +89,7 @@ async def search_organizations(
 async def get_organization_by_id(
     session: Annotated[AsyncSession, Depends(provide_session)],
     organization_id: int = Query(description="Идентификатор организации"),
-):
+) -> Organization:
     service = OrganizationService(session)
     try:
         result = await service.get_organization_by_id(organization_id)
@@ -119,7 +120,7 @@ async def get_organizations_within_radius(
     center_lan: float = Query(description="Широта центральной точки"),
     center_lon: float = Query(description="Долгота центральной точки"),
     radius_km: float = Query(description="Радиус в километрах"),
-):
+) -> List[Organization]:
     service = LocationService(session)
     try:
         result = await service.get_organizations_in_radius(
@@ -159,7 +160,7 @@ async def get_organizations_within_square(
     ne_lon: float = Query(description="Северо-восточная долгота"),
     sw_lat: float = Query(description="Юго-западная широта"),
     sw_lon: float = Query(description="Юго-западная долгота"),
-):
+) -> List[Organization]:
     service = LocationService(session)
     try:
         results = await service.get_organizations_in_square(
@@ -189,10 +190,13 @@ async def get_organizations_within_square(
         }
     }
 )
-async def search_organization_with_activities(session: Annotated[AsyncSession, Depends(provide_session)], activity_id: int = Query(description="ID вида деятельности")):
+async def search_organization_with_activities(
+    session: Annotated[AsyncSession, Depends(provide_session)],
+    activity_id: int = Query(description="ID вида деятельности"),
+) -> List[Organization]:
     service = OrganizationService(session)
     try:
-        result = service.search_organizations_with_activities(activity_id)
+        result = await service.search_organizations_with_activities(activity_id)
         return result
     except NoOrganizationsFoundError:
         raise HTTPException(status_code=404, detail="Не найдено организаций, подходящих под условия")
