@@ -18,3 +18,7 @@ docker compose exec web uv run alembic upgrade head
 
 В дальнейшем:
 docker compose up -d
+
+## Документация
+Swagger - /docs
+ReDoc - /redoc
