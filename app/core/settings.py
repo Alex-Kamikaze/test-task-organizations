@@ -22,6 +22,7 @@ class ApplicationSettings(BaseSettings):
     HOST: str = Field(alias="HOST")
     PORT: int = Field(alias="PORT")
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="allow")
 
 app_settings = ApplicationSettings()

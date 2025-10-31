@@ -30,5 +30,9 @@ app.include_router(
     dependencies=[Depends(require_bearer_auth)],
 )
 
+@app.get("/healthcheck")
+async def healthcheck():
+    return {"health": "ok"}
+
 if __name__ == "__main__":
-    uvicorn.run(app=app, host=app_settings.HOST, port=app_settings.PORT, reload=app_settings.DEBUG)
+    uvicorn.run(app=app, host=app_settings.HOST, port=app_settings.PORT, log_level="debug")
