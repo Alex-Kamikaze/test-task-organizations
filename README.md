@@ -13,11 +13,15 @@ POSTGRES_DB="organisations_db"
 
 ## Запуск проекта
 При первом запуске:
+```
 docker compose up --build -d
 docker compose exec web uv run alembic upgrade head
+```
 
 В дальнейшем:
+```
 docker compose up -d
+```
 
 ## Документация
 Swagger - /docs
